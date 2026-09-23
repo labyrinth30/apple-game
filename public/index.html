@@ -51,13 +51,10 @@
   /* ---------- 반응형: viewport 크기(너비+높이) 기반 ----------
    * 17행 보드가 항상 화면 안에 들어오도록 높이도 계산에 포함 → 페이지 스크롤 없음 */
   :root {
-    /* 너비 기준: (100vw - 좌우여백40 - 보드패딩12) / 10열 */
-    --cell-w: calc((100vw - 40px - 12px) / 10);
-    /* 높이 기준: (100svh - 헤더/HUD/여백 ~150px - 보드패딩12) / 17행
-     * svh = 주소창이 펼쳐진(가장 작은) 뷰포트 기준 고정값 → 스와이프로 주소창이 접혀도 칸 크기 불변 */
-    --cell-h: calc((100svh - 150px - 12px) / 17);
-    --cell: clamp(16px, min(var(--cell-w), var(--cell-h)), 34px);
-    --gap: clamp(1px, 0.3vw, 3px);
+    /* 너비/높이 기준 변수는 JS fixCellSize()에서 쓰는 참고용일 뿐 실제 사용 안 함.
+     * --cell은 초기 28px → 로드 직후 JS가 실측해 px 고정 (브라우저 내장 뷰어 대응 포함) */
+    --cell: 28px; /* 초기값. 로드 직후 JS가 실측해서 이 값을 px로 고정 덮어쓴다 */
+    --gap: 2px;
   }
   .grid {
     display: grid;
@@ -453,6 +450,33 @@ document.getElementById('btnRestart').addEventListener('click', () => {
 
 buildGrid();
 newBoard();
+
+/* ---------- 칸 크기 1회 고정 (안드로이드 뷰포트 리사이즈 무시) ----------
+ * 안드로이드 크롬은 스와이프로 주소창이 접히면 뷰포트가 늘어나 CSS 뷰포트 단위(vw/svh)
+ * 기반 변수가 재계산되며 보드가 커져 보였다. CSS 계산을 완전히 버리고
+ * 로드 직후 실측값을 px로 박아 고정 → 이후 모든 뷰포트 변화(주소창, 키보드, 회전 일부) 무시.
+ * 화면 회전 등 정말 큰 변화(±80px 이상)가 있을 때만 1회 재계산. */
+(function fixCellSize() {
+  const root = document.documentElement;
+  const HUD_RESERVE = 150;
+  function compute() {
+    const vw = window.visualViewport ? visualViewport.width : window.innerWidth;
+    const vh = window.visualViewport ? visualViewport.height : window.innerHeight;
+    const byW = Math.floor((vw - 40 - 12) / 10);
+    const byH = Math.floor((vh - HUD_RESERVE - 12) / 17);
+    const cell = Math.max(16, Math.min(byW, byH, 34));
+    const gap = cell >= 28 ? 2 : 1;
+    root.style.setProperty('--cell', cell + 'px');
+    root.style.setProperty('--gap', gap + 'px');
+  }
+  compute();
+  // 리사이즈 무시가 기본. 단, 회전처럼 실제 방향이 바뀐 경우만 재계산 (폭 변화 +-80px 이상)
+  let baseW = window.visualViewport ? visualViewport.width : window.innerWidth;
+  window.addEventListener('resize', () => {
+    const w = window.visualViewport ? visualViewport.width : window.innerWidth;
+    if (Math.abs(w - baseW) >= 80) { baseW = w; compute(); }
+  }, { passive: true });
+})();
 </script>
 </body>
 </html>

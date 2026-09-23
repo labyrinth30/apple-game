@@ -355,7 +355,11 @@ function pointerMove(e) {
  * 합이 10인 조합을 맞췄을 때 살짝 진동. 지원하지 않는 기기/브라우저는 조용히 무시.
  * iOS Safari는 미지원(무음 통과), Android Chrome/삼성 브라우저는 동작. */
 function buzzMatch() {
-  try { navigator.vibrate?.(30); } catch { /* 미지원 무시 */ }
+  // 40ms — 안드로이드 Chrome/삼성 인터넷 등 Vibration API 지원 브라우저에서만 동작.
+  // iOS 사파리·카톡 등 인앱 뷰어는 진동 API 자체가 없거나 막혀 있어 무음.
+  try {
+    if (typeof navigator.vibrate === 'function') navigator.vibrate(40);
+  } catch { /* 미지원 무시 */ }
 }
 
 function pointerUp(e) {

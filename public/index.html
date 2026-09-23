@@ -145,6 +145,7 @@
 <div class="hud">
   <div class="box"><div class="label">점수</div><div class="value" id="score">0</div></div>
   <div class="box"><div class="label">최고기록</div><div class="value" id="best">0</div></div>
+  <div class="box"><div class="label">시간</div><div class="value" id="timer">0:00</div></div>
   <button id="btnHint">💡 힌트</button>
   <button id="btnShuffle" style="background:#55efc4;color:#004b3a;">🔀 섞기</button>
   <button id="btnRestart">🔄 다시 시작</button>
@@ -174,6 +175,7 @@ const selBox = document.getElementById('selBox');
 const hintBox = document.getElementById('hintBox');
 const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
+const timerEl = document.getElementById('timer');
 const toastEl = document.getElementById('toast');
 
 /* localStorage 값 정화: 쓰레기 값/음수 → 0 (NaN 전파 방지) */
@@ -427,6 +429,26 @@ function shuffle() {
 }
 
 /* ---------- 다시 시작 ---------- */
+/* ---------- 타이머 (경과 시간 표시) ----------
+ * 게임 시작 기준 m:ss 형식으로 1초마다 갱신. 백그라운드 전환 여부 무관하게
+ * 경과 시간 자체는 Date.now 기반이라 정확. 다시 시작 시 0으로 리셋. */
+let playStart = Date.now();
+function fmtTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m + ':' + String(s % 60).padStart(2, '0');
+}
+function tickTimer() {
+  timerEl.textContent = fmtTime(Date.now() - playStart);
+}
+setInterval(tickTimer, 1000);
+tickTimer();
+
+function resetTimer() {
+  playStart = Date.now();
+  tickTimer();
+}
+
 function newBoard() {
   board = [];
   removed = [];
@@ -436,6 +458,7 @@ function newBoard() {
   }
   score = 0;
   scoreEl.textContent = '0';
+  resetTimer(); // 다시 시작 시 타이머 0 초기화
   cancelDrag();   // removed/score/preview/드래그 상태 완전 초기화
   clearHint();
   render();

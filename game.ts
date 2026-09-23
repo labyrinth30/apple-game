@@ -14,8 +14,8 @@ export interface HintRect {
   cells: [number, number][]; // [row, col] 목록 (0-indexed)
 }
 
-export const ROWS = 10;
-export const COLS = 17;
+export const ROWS = 17;
+export const COLS = 10;
 
 /** 랜덤 보드 생성: 1~9 숫자 */
 export function makeBoard(rows = ROWS, cols = COLS, rng: () => number = Math.random): Board {

@@ -13,7 +13,7 @@ app.post('/api/hint', async (c) => {
     return c.json({ error: '잘못된 요청입니다.' }, 400);
   }
   const board = body?.board;
-  if (!Array.isArray(board) || board.length !== 10 || !board.every((row) => Array.isArray(row) && row.length === 17)) {
+  if (!Array.isArray(board) || board.length !== 17 || !board.every((row) => Array.isArray(row) && row.length === 10)) {
     return c.json({ error: '보드 형식이 올바르지 않습니다.' }, 400);
   }
   const hint = findHint(board as number[][]);

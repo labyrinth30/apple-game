@@ -64,9 +64,9 @@ export function findHint(board: Board, target = 10): HintRect | null {
     for (let c1 = 0; c1 < cols; c1++) {
       for (let r2 = r1; r2 < rows; r2++) {
         for (let c2 = c1; c2 < cols; c2++) {
-          // 전체 칸수 == 유효 칸수여야 함 (제거된 칸 포함 금지)
-          const total = (r2 - r1 + 1) * (c2 - c1 + 1);
-          if (areaValid(r1, c1, r2, c2) !== total) continue;
+          // 영역 안에 살아있는 사과가 최소 1개 이상 있고, 그 합이 target이면 성립
+          // (빈칸이 포함돼도 남은 사과 합만 정확히 10이면 유효)
+          if (areaValid(r1, c1, r2, c2) === 0) continue;
           if (areaSum(r1, c1, r2, c2) === target) {
             const cells: [number, number][] = [];
             for (let r = r1; r <= r2; r++) {

@@ -177,8 +177,8 @@ function findHint(bd, target = TARGET) {
     for (let c1 = 0; c1 < COLS; c1++)
       for (let r2 = r1; r2 < ROWS; r2++)
         for (let c2 = c1; c2 < COLS; c2++) {
-          const total = (r2 - r1 + 1) * (c2 - c1 + 1);
-          if (aVal(r1, c1, r2, c2) !== total) continue;
+          // aVal > 0: 영역 안에 살아있는 사과가 최소 1개 이상 존재해야 함
+          if (aVal(r1, c1, r2, c2) === 0) continue;
           if (aSum(r1, c1, r2, c2) === target)
             return { r1, c1, r2, c2 };
         }
@@ -242,13 +242,15 @@ function rectPx({ r1, c1, r2, c2 }) {
 function previewRect(sc, ec) {
   const r1 = Math.min(sc.r, ec.r), r2 = Math.max(sc.r, ec.r);
   const c1 = Math.min(sc.c, ec.c), c2 = Math.max(sc.c, ec.c);
-  let s = 0, allAlive = true;
+  let s = 0, aliveCount = 0;
   for (let r = r1; r <= r2; r++)
     for (let c = c1; c <= c2; c++) {
-      if (removed[r][c]) { allAlive = false; }
-      else s += board[r][c];
+      if (!removed[r][c]) { s += board[r][c]; aliveCount++; }
     }
-  const ok = allAlive && s === TARGET;
+  // 규칙: 남아있는(삭제되지 않은) 사과 합이 정확히 10이면 제거.
+  // 빈칸(이미 제거된 칸)은 드래그 범위 안에 있어도 합에 포함되지 않으며 면적계산에서도 무시됨.
+  // 단, 최소 1개 이상의 사과가 필요함: 빈 영역만 드래그하는 것은 무효.
+  const ok = aliveCount > 0 && s === TARGET;
   for (const cell of grid.children) cell.classList.remove('preview');
   const { x, y, w, h } = rectPx({ r1, c1, r2, c2 });
   selBox.style.display = 'block';

@@ -34,9 +34,9 @@ function allRemoved(): RemovedMask {
 }
 
 describe('makeBoard', () => {
-  test('크기 17x10, 값 1~9', () => {
+  test('크기 15x10, 값 1~9', () => {
     const b = makeBoard();
-    expect(b.length).toBe(17);
+    expect(b.length).toBe(15);
     for (const row of b) expect(row.length).toBe(10);
     for (const row of b) for (const v of row) { expect(v).toBeGreaterThanOrEqual(1); expect(v).toBeLessThanOrEqual(9); }
   });

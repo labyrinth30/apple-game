@@ -20,7 +20,7 @@ export interface HintRect {
   cells: [number, number][]; // [row, col] 목록 (0-indexed)
 }
 
-export const ROWS = 17;
+export const ROWS = 15;
 export const COLS = 10;
 
 /** 모두 false(아무것도 제거되지 않음)인 removed 마스크 생성 */

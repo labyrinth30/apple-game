@@ -49,7 +49,7 @@
     box-shadow: 0 6px 20px rgba(0,0,0,.25);
   }
   /* ---------- 반응형: viewport 크기(너비+높이) 기반 ----------
-   * 17행 보드가 항상 화면 안에 들어오도록 높이도 계산에 포함 → 페이지 스크롤 없음 */
+   * 15행 보드가 항상 화면 안에 들어오도록 높이도 계산에 포함 → 페이지 스크롤 없음 */
   :root {
     /* 너비/높이 기준 변수는 JS fixCellSize()에서 쓰는 참고용일 뿐 실제 사용 안 함.
      * --cell은 초기 28px → 로드 직후 JS가 실측해 px 고정 (브라우저 내장 뷰어 대응 포함) */
@@ -158,7 +158,7 @@
 <div id="toast"></div>
 
 <script type="module">
-const ROWS = 17, COLS = 10, TARGET = 10;
+const ROWS = 15, COLS = 10, TARGET = 10;
 const BEST_KEY = 'appleGameBest';
 
 let board = [];
@@ -463,7 +463,7 @@ newBoard();
     const vw = window.visualViewport ? visualViewport.width : window.innerWidth;
     const vh = window.visualViewport ? visualViewport.height : window.innerHeight;
     const byW = Math.floor((vw - 40 - 12) / 10);
-    const byH = Math.floor((vh - HUD_RESERVE - 12) / 17);
+    const byH = Math.floor((vh - HUD_RESERVE - 12) / 15);
     const cell = Math.max(16, Math.min(byW, byH, 34));
     const gap = cell >= 28 ? 2 : 1;
     root.style.setProperty('--cell', cell + 'px');

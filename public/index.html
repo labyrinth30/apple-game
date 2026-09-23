@@ -2,7 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>🍎 사과게임</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -65,15 +67,15 @@
   .cell {
     position: relative;
     width: var(--cell); height: var(--cell); border-radius: 50%;
-    background: radial-gradient(circle at 32% 28%, #e85a5a 0%, #d64545 42%, #ae2e2e 78%, #8f2020 100%);
+    background: radial-gradient(circle at 33% 30%, #f4796b 0%, #e56055 45%, #d14c48 78%, #c04340 100%);
     color: #fff;
     display: flex; align-items: center; justify-content: center;
     font-size: calc(var(--cell) * 0.46); font-weight: 800;
-    text-shadow: 0 1px 2px rgba(0,0,0,.35);
+    text-shadow: 0 1px 1px rgba(0,0,0,.18);
     box-shadow:
-      inset 0 -3px 6px rgba(0,0,0,.30),
-      inset 2px 3px 5px rgba(255,255,255,.18),
-      0 2px 3px rgba(0,0,0,.25);
+      inset 0 -2px 4px rgba(0,0,0,.14),
+      inset 2px 2px 4px rgba(255,255,255,.28),
+      0 1px 2px rgba(0,0,0,.15);
     pointer-events: none;
   }
   /* 사과 줄기 + 잎 (grid cell 위 ::before/::after) */
@@ -106,7 +108,10 @@
     #board { padding: 4px; }
   }
   .cell.removed { background: transparent; box-shadow: none; color: transparent; }
+  /* 제거된 칸은 줄기(::before)/잎(::after)도 함께 숨김 */
+  .cell.removed::before, .cell.removed::after { display: none; }
   .cell.preview { outline: 2px solid #fff; outline-offset: -2px; }
+  .cell.preview::before, .cell.preview::after { opacity: .85; } /* preview 중엔 살짝 연하게 (원본 유지) */
   .cell.hintCell {
     background: #fdcb6e !important; color: #6b4e00 !important;
     animation: pulse 0.8s infinite alternate;

@@ -91,6 +91,7 @@
   <div class="box"><div class="label">점수</div><div class="value" id="score">0</div></div>
   <div class="box"><div class="label">최고기록</div><div class="value" id="best">0</div></div>
   <button id="btnHint">💡 힌트</button>
+  <button id="btnShuffle" style="background:#55efc4;color:#004b3a;">🔀 섞기</button>
   <button id="btnRestart">🔄 다시 시작</button>
 </div>
 <div id="board">
@@ -174,7 +175,9 @@ function showHint() {
   clearHint();
   const rect = findHint(board);
   if (!rect) {
-    showToast('현재 가능한 조합이 없어요');
+    showToast('🧩 풀 수 있는 조합이 없어요 — 🔄 섞기 버튼을 눌러주세요!');
+    const sh = document.getElementById('btnShuffle');
+    if (sh) { sh.style.animation = 'pulse .5s 4'; setTimeout(() => sh.style.animation = '', 2100); }
     return;
   }
   // 시각적 표시만: 제거/점수 변경 없음
@@ -300,6 +303,27 @@ function showToast(msg) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
 }
 
+/* ---------- 섞기 (무제한) ---------- */
+function shuffle() {
+  // 제거되지 않은 칸의 값들만 수집해 랜덤 재배치
+  const alive = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (!removed[r][c]) alive.push(board[r][c]);
+  // Fisher-Yates
+  for (let i = alive.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [alive[i], alive[j]] = [alive[j], alive[i]];
+  }
+  let idx = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (!removed[r][c]) board[r][c] = alive[idx++];
+  clearHint();
+  selBox.style.display = 'none';
+  render();
+}
+
 /* ---------- 다시 시작 ---------- */
 function newBoard() {
   board = [];
@@ -320,6 +344,10 @@ boardEl.addEventListener('pointerdown', pointerDown);
 window.addEventListener('pointermove', pointerMove);
 window.addEventListener('pointerup', pointerUp);
 document.getElementById('btnHint').addEventListener('click', showHint);
+document.getElementById('btnShuffle').addEventListener('click', () => {
+  shuffle();
+  showToast('🔀 남은 사과를 섞었어요!');
+});
 document.getElementById('btnRestart').addEventListener('click', () => {
   newBoard();
   showToast('새 보드로 다시 시작! 점수 0');

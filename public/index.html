@@ -26,10 +26,11 @@
   /* 게임판 전체(+페이지 전체)에서 드래그 전용 — 손가락이 페이지를 당기지 않음 */
   html, body, #board { touch-action: none; }
   h1 { font-size: 1.5rem; color: #d63031; margin: 6px 0; }
-  .hud { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+  .hud { display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
   .hud .box {
     background: #fff; border-radius: 12px; padding: 6px 16px;
     box-shadow: 0 2px 6px rgba(0,0,0,.08); text-align: center;
+    display: flex; flex-direction: column; justify-content: center; /* 버튼과 세로 높이 동일하게 */
   }
   .hud .label { font-size: .7rem; color: #999; }
   .hud .value { font-size: 1.3rem; font-weight: 700; color: #d63031; }

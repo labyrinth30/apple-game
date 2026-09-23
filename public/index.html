@@ -52,12 +52,36 @@
     gap: var(--gap);
   }
   .cell {
+    position: relative;
     width: var(--cell); height: var(--cell); border-radius: 50%;
-    background: #ae2e2e; color: #fff;
+    background: radial-gradient(circle at 32% 28%, #e85a5a 0%, #d64545 42%, #ae2e2e 78%, #8f2020 100%);
+    color: #fff;
     display: flex; align-items: center; justify-content: center;
     font-size: calc(var(--cell) * 0.46); font-weight: 800;
-    box-shadow: inset 0 -3px 0 rgba(0,0,0,.25);
+    text-shadow: 0 1px 2px rgba(0,0,0,.35);
+    box-shadow:
+      inset 0 -3px 6px rgba(0,0,0,.30),
+      inset 2px 3px 5px rgba(255,255,255,.18),
+      0 2px 3px rgba(0,0,0,.25);
     pointer-events: none;
+  }
+  /* 사과 줄기 + 잎 (grid cell 위 ::before/::after) */
+  .cell::before {
+    content: '';
+    position: absolute; top: calc(var(--cell) * -0.07);
+    left: calc(var(--cell) * 0.5 - var(--cell) * 0.035);
+    width: calc(var(--cell) * 0.07); height: calc(var(--cell) * 0.16);
+    background: #7a4a21; border-radius: 2px;
+    transform: rotate(6deg);
+  }
+  .cell::after {
+    content: '';
+    position: absolute; top: calc(var(--cell) * -0.13);
+    left: calc(var(--cell) * 0.54);
+    width: calc(var(--cell) * 0.22); height: calc(var(--cell) * 0.13);
+    background: linear-gradient(135deg, #6bbf59, #4a9938);
+    border-radius: 0 70% 0 70%;
+    transform: rotate(-18deg);
   }
   .hud .value { font-size: clamp(1.05rem, 4vw, 1.3rem); }
   h1 { font-size: clamp(1.15rem, 5vw, 1.5rem); }

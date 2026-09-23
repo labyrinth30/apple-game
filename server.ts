@@ -1,22 +1,28 @@
 import { Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
-import { findHint, makeBoard } from './game';
+import { findHint, makeBoard, ROWS, COLS } from './game';
 
 const app = new Hono();
 
-// 힌트 API: 서버 측 브루트포스 스캔 (클라이언트에서도 동일 로직 사용 가능)
+// 힌트 API: 서버 측 브루트포스 스캔 (클라이언트와 동일 규칙: live 사과 합 == 10, 빈칸 무시, live ≥ 1)
 app.post('/api/hint', async (c) => {
-  let body: { board?: unknown };
+  let body: { board?: unknown; removed?: unknown };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: '잘못된 요청입니다.' }, 400);
   }
   const board = body?.board;
-  if (!Array.isArray(board) || board.length !== 17 || !board.every((row) => Array.isArray(row) && row.length === 10)) {
+  if (!Array.isArray(board) || board.length !== ROWS || !board.every((row) => Array.isArray(row) && row.length === COLS)) {
     return c.json({ error: '보드 형식이 올바르지 않습니다.' }, 400);
   }
-  const hint = findHint(board as number[][]);
+  // removed(빈칸 마스크)는 선택: 형식이 일치하면 적용, 아니면 전부 살아있는 것으로 간주
+  let removed: boolean[][] | undefined;
+  const rm = body?.removed;
+  if (Array.isArray(rm) && rm.length === ROWS && rm.every((row) => Array.isArray(row) && row.length === COLS && row.every((v) => typeof v === 'boolean'))) {
+    removed = rm as boolean[][];
+  }
+  const hint = findHint(board as number[][], 10, removed);
   if (!hint) {
     return c.json({ found: false, message: '현재 가능한 조합이 없어요' });
   }

@@ -12,7 +12,7 @@
     min-height: 100vh;
     display: flex; flex-direction: column; align-items: center;
     padding: 12px;
-    user-select: none; -webkit-user-select: none;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
   /* 게임판에서만 드래그 전용(스크롤 방지), 그 밖의 영역은 자연 스크롤 허용 */
   #board { touch-action: none; }
@@ -75,6 +75,8 @@
     background: #fdcb6e !important; color: #6b4e00 !important;
     animation: pulse 0.8s infinite alternate;
   }
+  /* 빈칸은 힌트 하이라이트를 받지 않는다(제거된 칸이 사과로 '되살아나는' 표시 방지) */
+  .cell.removed.hintCell { background: transparent !important; color: transparent !important; animation: none; }
   @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
   #selBox {
     position: absolute; border: 3px solid #f9ca24; border-radius: 8px;
@@ -123,8 +125,9 @@ const BEST_KEY = 'appleGameBest';
 let board = [];
 let removed = [];
 let score = 0;
-let best = Number(localStorage.getItem(BEST_KEY) ?? 0);
 let hintTimeout = null;
+/* 드래그 상태: 멀티터치/포인터 취소 대비 pointerId 추적 */
+let dragging = false, startCell = null, activePointerId = null;
 
 const grid = document.getElementById('grid');
 const boardEl = document.getElementById('board');
@@ -134,6 +137,12 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const toastEl = document.getElementById('toast');
 
+/* localStorage 값 정화: 쓰레기 값/음수 → 0 (NaN 전파 방지) */
+function sanitizeBest(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+let best = sanitizeBest(localStorage.getItem(BEST_KEY));
 bestEl.textContent = best;
 
 /* ---------- 보드 렌더 ---------- */
@@ -153,20 +162,22 @@ function buildGrid() {
 function render() {
   for (const cell of grid.children) {
     const r = +cell.dataset.r, c = +cell.dataset.c;
-    cell.textContent = board[r][c] ?? '';
+    cell.textContent = removed[r][c] ? '' : board[r][c];
     cell.classList.toggle('removed', removed[r][c]);
   }
 }
 
-/* ---------- 힌트 (브루트포스, 서버와 동일 알고리즘) ---------- */
-function findHint(bd, target = TARGET) {
-  // 누적합
+/* ---------- 힌트 (브루트포스, 서버 game.ts findHint와 동일 규칙) ----------
+ * 규칙: 드래그(직사각형) 안의 "살아있는 사과" 합이 정확히 TARGET,
+ *       빈칸(removed=true)은 합/개수에서 완전히 무시, 살아있는 사과 최소 1개.
+ * game.ts와 달리 removed 마스크를 인자로 받는다(전역 상태 의존 제거). */
+function findHint(bd, mask, target = TARGET) {
   const sum = Array.from({ length: ROWS + 1 }, () => new Array(COLS + 1).fill(0));
   const valid = Array.from({ length: ROWS + 1 }, () => new Array(COLS + 1).fill(0));
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const v = bd[r][c];
-      const isVal = !removed[r][c] && typeof v === 'number' && v > 0;
+      const isVal = !mask[r][c] && typeof v === 'number' && v > 0;
       sum[r + 1][c + 1] = sum[r][c + 1] + sum[r + 1][c] - sum[r][c] + (isVal ? v : 0);
       valid[r + 1][c + 1] = valid[r][c + 1] + valid[r + 1][c] - valid[r][c] + (isVal ? 1 : 0);
     }
@@ -187,17 +198,17 @@ function findHint(bd, target = TARGET) {
 
 function showHint() {
   clearHint();
-  const rect = findHint(board);
+  const rect = findHint(board, removed);
   if (!rect) {
     showToast('🧩 풀 수 있는 조합이 없어요 — 🔄 섞기 버튼을 눌러주세요!');
     const sh = document.getElementById('btnShuffle');
     if (sh) { sh.style.animation = 'pulse .5s 4'; setTimeout(() => sh.style.animation = '', 2100); }
     return;
   }
-  // 시각적 표시만: 제거/점수 변경 없음
+  // 시각적 표시만: 제거/점수 변경 없음. 빈칸은 하이라이트하지 않는다(되살아난 것처럼 보이는 버그 방지).
   for (let r = rect.r1; r <= rect.r2; r++)
     for (let c = rect.c1; c <= rect.c2; c++)
-      grid.children[r * COLS + c].classList.add('hintCell');
+      if (!removed[r][c]) grid.children[r * COLS + c].classList.add('hintCell');
   const { x, y, w, h } = rectPx(rect);
   Object.assign(hintBox.style, { display: 'block', left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
   hintTimeout = setTimeout(clearHint, 4000); // 4초 후 만료
@@ -210,16 +221,15 @@ function clearHint() {
 }
 
 /* ---------- 드래그 선택 ---------- */
-let dragging = false, startCell = null;
-
 function cellFromPoint(x, y) {
   const rect = grid.getBoundingClientRect();
   const style = getComputedStyle(grid);
   const gap = parseFloat(style.gap) || 0;
-  const cw = grid.children[0].offsetWidth + gap;
-  const ch = grid.children[0].offsetHeight + gap;
-  const c = Math.floor((x - rect.left) / cw);
-  const r = Math.floor((y - rect.top) / ch);
+  // 정확한 칸 크기: (그리드 내부폭 - (n-1)*gap) / n  (offsetWidth 반올림 오차 누적 방지)
+  const cw = (rect.width - (COLS - 1) * gap) / COLS;
+  const ch = (rect.height - (ROWS - 1) * gap) / ROWS;
+  const c = Math.floor((x - rect.left) / (cw + gap));
+  const r = Math.floor((y - rect.top) / (ch + gap));
   if (r < 0 || c < 0 || r >= ROWS || c >= COLS) return null;
   return { r, c };
 }
@@ -229,13 +239,12 @@ function rectPx({ r1, c1, r2, c2 }) {
   const b = grid.children[r2 * COLS + c2];
   const ga = a.getBoundingClientRect(), gb = b.getBoundingClientRect();
   const ba = boardEl.getBoundingClientRect();
-  const pad = 6;
   return {
+    // 박스 테두리(3px) 안쪽 면이 칸 경계에 맞도록 3px 마진
     x: Math.min(ga.left, gb.left) - ba.left - 3,
     y: Math.min(ga.top, gb.top) - ba.top - 3,
     w: Math.max(ga.right, gb.right) - Math.min(ga.left, gb.left) + 6,
-    h: Math.max(ga.bottom, gb.bottom) - Math.min(ga.top, gb.top) + 6,
-    pad
+    h: Math.max(ga.bottom, gb.bottom) - Math.min(ga.top, gb.top) + 6
   };
 }
 
@@ -248,7 +257,7 @@ function previewRect(sc, ec) {
       if (!removed[r][c]) { s += board[r][c]; aliveCount++; }
     }
   // 규칙: 남아있는(삭제되지 않은) 사과 합이 정확히 10이면 제거.
-  // 빈칸(이미 제거된 칸)은 드래그 범위 안에 있어도 합에 포함되지 않으며 면적계산에서도 무시됨.
+  // 빈칸(이미 제거된 칸)은 드래그 범위 안에 있어도 합에 포함되지 않음.
   // 단, 최소 1개 이상의 사과가 필요함: 빈 영역만 드래그하는 것은 무효.
   const ok = aliveCount > 0 && s === TARGET;
   for (const cell of grid.children) cell.classList.remove('preview');
@@ -261,43 +270,58 @@ function previewRect(sc, ec) {
   if (ok)
     for (let r = r1; r <= r2; r++)
       for (let c = c1; c <= c2; c++)
-        grid.children[r * COLS + c].classList.add('preview');
+        if (!removed[r][c]) grid.children[r * COLS + c].classList.add('preview'); // 빈칸에는 preview 표시 안 함
   return { r1, c1, r2, c2, ok };
+}
+
+/* 드래그 시각 상태 완전 해제 (preview/selBox) — 취소 경로에서도 누수 없도록 공용화 */
+function clearDragVisuals() {
+  selBox.style.display = 'none';
+  for (const cell of grid.children) cell.classList.remove('preview');
+}
+
+function cancelDrag() {
+  dragging = false;
+  startCell = null;
+  activePointerId = null;
+  clearDragVisuals();
 }
 
 function pointerDown(e) {
   if (e.button !== undefined && e.button !== 0) return;
+  if (dragging) return; // 멀티터치: 이미 진행 중인 드래그가 있으면 새 포인터 무시
   const cell = cellFromPoint(e.clientX, e.clientY);
   if (!cell) return;
-  clearHint(); // 드래그 시작 시 힌트 표시 해제
+  clearHint(); // 드래그 시작 시 힌트 표시 해제 (힌트 상태 누수 방지)
   dragging = true;
+  activePointerId = e.pointerId;
   startCell = cell;
   previewRect(startCell, cell);
   e.preventDefault();
 }
 
 function pointerMove(e) {
-  if (!dragging) return;
+  if (!dragging || e.pointerId !== activePointerId) return;
   const cell = cellFromPoint(e.clientX, e.clientY);
   if (cell) previewRect(startCell, cell);
   e.preventDefault();
 }
 
 function pointerUp(e) {
-  if (!dragging) return;
+  if (!dragging || e.pointerId !== activePointerId) return;
   dragging = false;
+  activePointerId = null;
   const cell = cellFromPoint(e.clientX, e.clientY) ?? startCell;
   const sel = previewRect(startCell, cell);
-  selBox.style.display = 'none';
-  for (const cellEl of grid.children) cellEl.classList.remove('preview');
+  clearDragVisuals();
   if (sel.ok) {
     let count = 0;
     for (let r = sel.r1; r <= sel.r2; r++)
       for (let c = sel.c1; c <= sel.c2; c++) {
-        removed[r][c] = true;
-        count++;
+        // 점수는 "실제로 제거한 사과 수"만 누적 — 이미 빈칸인 칸은 재계수 금지 (점수 인플레이션 버그 수정)
+        if (!removed[r][c]) { removed[r][c] = true; count++; }
       }
-    render(); // 즉시 사과 제거 반영 (레이아웃 전환 후 렌더 누락 방지)
+    render(); // 즉시 사과 제거 반영
     score += count;
     scoreEl.textContent = score;
     if (score > best) {
@@ -305,9 +329,9 @@ function pointerUp(e) {
       localStorage.setItem(BEST_KEY, String(best));
       bestEl.textContent = best;
     }
-    // 제거 안내 토스트 없음 — 게임판 가림 방지 (showToast 호출 삭제)
     // 제거로 인해 남은 사과가 10 미만이면 조합 불가능 → 새 보드 제안은 하지 않음 (MVP 규칙)
   }
+  startCell = null;
   e.preventDefault();
 }
 
@@ -322,7 +346,8 @@ function showToast(msg) {
 
 /* ---------- 섞기 (무제한) ---------- */
 function shuffle() {
-  // 제거되지 않은 칸의 값들만 수집해 랜덤 재배치
+  // 제거되지 않은 칸의 값들만 수집해 랜덤 재배치. removed(빈칸) 절대 리셋 금지 —
+  // 리셋하면 사라진 사과가 다시 나타나는 치명적 버그가 됨.
   const alive = [];
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
@@ -336,8 +361,8 @@ function shuffle() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       if (!removed[r][c]) board[r][c] = alive[idx++];
+  cancelDrag();   // 진행 중 드래그/preview 상태 정리 (보드가 바뀌었으므로 무효)
   clearHint();
-  selBox.style.display = 'none';
   render();
 }
 
@@ -351,8 +376,8 @@ function newBoard() {
   }
   score = 0;
   scoreEl.textContent = '0';
+  cancelDrag();   // removed/score/preview/드래그 상태 완전 초기화
   clearHint();
-  selBox.style.display = 'none';
   render();
 }
 
@@ -360,6 +385,12 @@ function newBoard() {
 boardEl.addEventListener('pointerdown', pointerDown);
 window.addEventListener('pointermove', pointerMove);
 window.addEventListener('pointerup', pointerUp);
+window.addEventListener('pointercancel', (e) => {
+  // 터치 취소/스크롤 뺏김 등: 제거 없이 시각 상태만 정리 (preview 누수 방지)
+  if (!dragging || e.pointerId !== activePointerId) return;
+  cancelDrag();
+});
+window.addEventListener('blur', cancelDrag);
 document.getElementById('btnHint').addEventListener('click', showHint);
 document.getElementById('btnShuffle').addEventListener('click', () => {
   shuffle();

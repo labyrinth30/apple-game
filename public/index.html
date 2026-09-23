@@ -166,7 +166,7 @@ let removed = [];
 let score = 0;
 let hintTimeout = null;
 /* 드래그 상태: 멀티터치/포인터 취소 대비 pointerId 추적 */
-let dragging = false, startCell = null, activePointerId = null;
+let dragging = false, startCell = null, activePointerId = null, lastValidCell = null;
 
 const grid = document.getElementById('grid');
 const boardEl = document.getElementById('board');
@@ -322,6 +322,7 @@ function clearDragVisuals() {
 function cancelDrag() {
   dragging = false;
   startCell = null;
+  lastValidCell = null;
   activePointerId = null;
   clearDragVisuals();
 }
@@ -335,6 +336,7 @@ function pointerDown(e) {
   dragging = true;
   activePointerId = e.pointerId;
   startCell = cell;
+  lastValidCell = cell;
   previewRect(startCell, cell);
   e.preventDefault();
 }
@@ -342,7 +344,10 @@ function pointerDown(e) {
 function pointerMove(e) {
   if (!dragging || e.pointerId !== activePointerId) return;
   const cell = cellFromPoint(e.clientX, e.clientY);
-  if (cell) previewRect(startCell, cell);
+  if (cell) {
+    lastValidCell = cell; // 보드 밖으로 나가도 마지막 보드 내 위치 기억
+    previewRect(startCell, cell);
+  }
   e.preventDefault();
 }
 
@@ -357,7 +362,10 @@ function pointerUp(e) {
   if (!dragging || e.pointerId !== activePointerId) return;
   dragging = false;
   activePointerId = null;
-  const cell = cellFromPoint(e.clientX, e.clientY) ?? startCell;
+  // 손가락이 보드 밖에서 떼어도 마지막 유효 셀로 완료 처리:
+  // 모바일에서 모서리 사과 드래그 중 손이 살짝 나가면 제거가 취소되는 불편 해소.
+  // lastCell = 마지막으로 계산된 보드 내 셀 (없으면 시작 셀)
+  const cell = cellFromPoint(e.clientX, e.clientY) ?? lastValidCell ?? startCell;
   const sel = previewRect(startCell, cell);
   clearDragVisuals();
   if (sel.ok) {
@@ -379,6 +387,7 @@ function pointerUp(e) {
     // 제거로 인해 남은 사과가 10 미만이면 조합 불가능 → 새 보드 제안은 하지 않음 (MVP 규칙)
   }
   startCell = null;
+  lastValidCell = null;
   e.preventDefault();
 }
 

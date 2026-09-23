@@ -143,8 +143,6 @@
 <body>
 <h1>🍎 사과게임</h1>
 <div class="hud">
-  <div class="box"><div class="label">점수</div><div class="value" id="score">0</div></div>
-  <div class="box"><div class="label">최고기록</div><div class="value" id="best">0</div></div>
   <div class="box"><div class="label">시간</div><div class="value" id="timer">0:00</div></div>
   <button id="btnHint">💡 힌트</button>
   <button id="btnShuffle" style="background:#55efc4;color:#004b3a;">🔀 섞기</button>
@@ -160,11 +158,10 @@
 
 <script type="module">
 const ROWS = 15, COLS = 10, TARGET = 10;
-const BEST_KEY = 'appleGameBest';
 
 let board = [];
 let removed = [];
-let score = 0;
+let score = 0; // 내부 카운트 유지(로직 안전용), UI에서는 표시 안 함
 let hintTimeout = null;
 /* 드래그 상태: 멀티터치/포인터 취소 대비 pointerId 추적 */
 let dragging = false, startCell = null, activePointerId = null, lastValidCell = null;
@@ -173,18 +170,8 @@ const grid = document.getElementById('grid');
 const boardEl = document.getElementById('board');
 const selBox = document.getElementById('selBox');
 const hintBox = document.getElementById('hintBox');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
 const timerEl = document.getElementById('timer');
 const toastEl = document.getElementById('toast');
-
-/* localStorage 값 정화: 쓰레기 값/음수 → 0 (NaN 전파 방지) */
-function sanitizeBest(v) {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-let best = sanitizeBest(localStorage.getItem(BEST_KEY));
-bestEl.textContent = best;
 
 /* ---------- 보드 렌더 ---------- */
 function buildGrid() {
@@ -383,13 +370,7 @@ function pointerUp(e) {
         if (!removed[r][c]) { removed[r][c] = true; count++; }
       }
     render(); // 즉시 사과 제거 반영
-    score += count;
-    scoreEl.textContent = score;
-    if (score > best) {
-      best = score;
-      localStorage.setItem(BEST_KEY, String(best));
-      bestEl.textContent = best;
-    }
+    score += count; // 내부 누적 (UI 비표시)
     // 제거로 인해 남은 사과가 10 미만이면 조합 불가능 → 새 보드 제안은 하지 않음 (MVP 규칙)
   }
   startCell = null;
@@ -457,7 +438,6 @@ function newBoard() {
     removed.push(new Array(COLS).fill(false));
   }
   score = 0;
-  scoreEl.textContent = '0';
   resetTimer(); // 다시 시작 시 타이머 0 초기화
   cancelDrag();   // removed/score/preview/드래그 상태 완전 초기화
   clearHint();

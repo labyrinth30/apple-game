@@ -295,6 +295,7 @@ function pointerUp(e) {
         removed[r][c] = true;
         count++;
       }
+    render(); // 즉시 사과 제거 반영 (레이아웃 전환 후 렌더 누락 방지)
     score += count;
     scoreEl.textContent = score;
     if (score > best) {

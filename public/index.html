@@ -343,6 +343,13 @@ function pointerMove(e) {
   e.preventDefault();
 }
 
+/* ---------- 햅틱 (진동 API) ----------
+ * 합이 10인 조합을 맞췄을 때 살짝 진동. 지원하지 않는 기기/브라우저는 조용히 무시.
+ * iOS Safari는 미지원(무음 통과), Android Chrome/삼성 브라우저는 동작. */
+function buzzMatch() {
+  try { navigator.vibrate?.(30); } catch { /* 미지원 무시 */ }
+}
+
 function pointerUp(e) {
   if (!dragging || e.pointerId !== activePointerId) return;
   dragging = false;
@@ -351,6 +358,7 @@ function pointerUp(e) {
   const sel = previewRect(startCell, cell);
   clearDragVisuals();
   if (sel.ok) {
+    buzzMatch(); // 맞췄을 때 살짝 햅틱
     let count = 0;
     for (let r = sel.r1; r <= sel.r2; r++)
       for (let c = sel.c1; c <= sel.c2; c++) {

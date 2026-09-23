@@ -1,0 +1,12 @@
+{
+  "name": "apple-game",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "start": "bun server.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  }
+}

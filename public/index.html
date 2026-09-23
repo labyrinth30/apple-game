@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🍎 사과게임</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: linear-gradient(180deg, #fef3e2, #fde8d0);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  h1 { font-size: 1.5rem; color: #d63031; margin: 6px 0; }
+  .hud { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+  .hud .box {
+    background: #fff; border-radius: 12px; padding: 6px 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08); text-align: center;
+  }
+  .hud .label { font-size: .7rem; color: #999; }
+  .hud .value { font-size: 1.3rem; font-weight: 700; color: #d63031; }
+  button {
+    border: none; border-radius: 12px; padding: 10px 18px;
+    font-size: .95rem; font-weight: 700; cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.1); transition: transform .05s;
+  }
+  button:active { transform: scale(.95); }
+  #btnHint { background: #f9ca24; color: #6b4e00; }
+  #btnRestart { background: #74b9ff; color: #0a3d62; }
+  #board {
+    position: relative;
+    background: #2d3436;
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(17, 30px);
+    grid-auto-rows: 30px;
+    gap: 3px;
+  }
+  .cell {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #ae2e2e; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; font-weight: 800;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.25);
+    pointer-events: none;
+  }
+  .cell.removed { background: transparent; box-shadow: none; color: transparent; }
+  .cell.preview { outline: 2px solid #fff; outline-offset: -2px; }
+  .cell.hintCell {
+    background: #fdcb6e !important; color: #6b4e00 !important;
+    animation: pulse 0.8s infinite alternate;
+  }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+  #selBox {
+    position: absolute; border: 3px solid #f9ca24; border-radius: 8px;
+    pointer-events: none; display: none;
+    background: rgba(249, 202, 36, .12);
+  }
+  #hintBox {
+    position: absolute; border: 3px dashed #55efc4; border-radius: 8px;
+    pointer-events: none; display: none;
+    background: rgba(85, 239, 196, .1);
+    box-shadow: 0 0 12px rgba(85,239,196,.6);
+  }
+  #toast {
+    position: fixed; left: 50%; top: 14%; transform: translateX(-50%);
+    background: rgba(45,52,54,.92); color: #fff; padding: 10px 22px;
+    border-radius: 24px; font-size: .95rem; font-weight: 600;
+    opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 50;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  .meta { margin-top: 10px; color: #8d6e63; font-size: .8rem; }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: repeat(17, 19px); grid-auto-rows: 19px; gap: 2px; }
+    .cell { width: 19px; height: 19px; font-size: .65rem; }
+  }
+</style>
+</head>
+<body>
+<h1>🍎 사과게임</h1>
+<div class="hud">
+  <div class="box"><div class="label">점수</div><div class="value" id="score">0</div></div>
+  <div class="box"><div class="label">최고기록</div><div class="value" id="best">0</div></div>
+  <button id="btnHint">💡 힌트</button>
+  <button id="btnRestart">🔄 다시 시작</button>
+</div>
+<div id="board">
+  <div class="grid" id="grid"></div>
+  <div id="selBox"></div>
+  <div id="hintBox"></div>
+</div>
+<div class="meta">드래그해서 사과를 선택하세요 · 합이 10이면 제거!</div>
+<div id="toast"></div>
+
+<script type="module">
+const ROWS = 10, COLS = 17, TARGET = 10;
+const BEST_KEY = 'appleGameBest';
+
+let board = [];
+let removed = [];
+let score = 0;
+let best = Number(localStorage.getItem(BEST_KEY) ?? 0);
+let hintTimeout = null;
+
+const grid = document.getElementById('grid');
+const boardEl = document.getElementById('board');
+const selBox = document.getElementById('selBox');
+const hintBox = document.getElementById('hintBox');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const toastEl = document.getElementById('toast');
+
+bestEl.textContent = best;
+
+/* ---------- 보드 렌더 ---------- */
+function buildGrid() {
+  grid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function render() {
+  for (const cell of grid.children) {
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    cell.textContent = board[r][c] ?? '';
+    cell.classList.toggle('removed', removed[r][c]);
+  }
+}
+
+/* ---------- 힌트 (브루트포스, 서버와 동일 알고리즘) ---------- */
+function findHint(bd, target = TARGET) {
+  // 누적합
+  const sum = Array.from({ length: ROWS + 1 }, () => new Array(COLS + 1).fill(0));
+  const valid = Array.from({ length: ROWS + 1 }, () => new Array(COLS + 1).fill(0));
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const v = bd[r][c];
+      const isVal = !removed[r][c] && typeof v === 'number' && v > 0;
+      sum[r + 1][c + 1] = sum[r][c + 1] + sum[r + 1][c] - sum[r][c] + (isVal ? v : 0);
+      valid[r + 1][c + 1] = valid[r][c + 1] + valid[r + 1][c] - valid[r][c] + (isVal ? 1 : 0);
+    }
+  }
+  const aSum = (r1, c1, r2, c2) => sum[r2+1][c2+1] - sum[r1][c2+1] - sum[r2+1][c1] + sum[r1][c1];
+  const aVal = (r1, c1, r2, c2) => valid[r2+1][c2+1] - valid[r1][c2+1] - valid[r2+1][c1] + valid[r1][c1];
+  for (let r1 = 0; r1 < ROWS; r1++)
+    for (let c1 = 0; c1 < COLS; c1++)
+      for (let r2 = r1; r2 < ROWS; r2++)
+        for (let c2 = c1; c2 < COLS; c2++) {
+          const total = (r2 - r1 + 1) * (c2 - c1 + 1);
+          if (aVal(r1, c1, r2, c2) !== total) continue;
+          if (aSum(r1, c1, r2, c2) === target)
+            return { r1, c1, r2, c2 };
+        }
+  return null;
+}
+
+function showHint() {
+  clearHint();
+  const rect = findHint(board);
+  if (!rect) {
+    showToast('현재 가능한 조합이 없어요');
+    return;
+  }
+  // 시각적 표시만: 제거/점수 변경 없음
+  for (let r = rect.r1; r <= rect.r2; r++)
+    for (let c = rect.c1; c <= rect.c2; c++)
+      grid.children[r * COLS + c].classList.add('hintCell');
+  const { x, y, w, h } = rectPx(rect);
+  Object.assign(hintBox.style, { display: 'block', left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  hintTimeout = setTimeout(clearHint, 4000); // 4초 후 만료
+}
+
+function clearHint() {
+  if (hintTimeout) { clearTimeout(hintTimeout); hintTimeout = null; }
+  hintBox.style.display = 'none';
+  for (const cell of grid.children) cell.classList.remove('hintCell');
+}
+
+/* ---------- 드래그 선택 ---------- */
+let dragging = false, startCell = null;
+
+function cellFromPoint(x, y) {
+  const rect = grid.getBoundingClientRect();
+  const style = getComputedStyle(grid);
+  const gap = parseFloat(style.gap) || 0;
+  const cw = grid.children[0].offsetWidth + gap;
+  const ch = grid.children[0].offsetHeight + gap;
+  const c = Math.floor((x - rect.left) / cw);
+  const r = Math.floor((y - rect.top) / ch);
+  if (r < 0 || c < 0 || r >= ROWS || c >= COLS) return null;
+  return { r, c };
+}
+
+function rectPx({ r1, c1, r2, c2 }) {
+  const a = grid.children[r1 * COLS + c1];
+  const b = grid.children[r2 * COLS + c2];
+  const ga = a.getBoundingClientRect(), gb = b.getBoundingClientRect();
+  const ba = boardEl.getBoundingClientRect();
+  const pad = 6;
+  return {
+    x: Math.min(ga.left, gb.left) - ba.left - 3,
+    y: Math.min(ga.top, gb.top) - ba.top - 3,
+    w: Math.max(ga.right, gb.right) - Math.min(ga.left, gb.left) + 6,
+    h: Math.max(ga.bottom, gb.bottom) - Math.min(ga.top, gb.top) + 6,
+    pad
+  };
+}
+
+function previewRect(sc, ec) {
+  const r1 = Math.min(sc.r, ec.r), r2 = Math.max(sc.r, ec.r);
+  const c1 = Math.min(sc.c, ec.c), c2 = Math.max(sc.c, ec.c);
+  let s = 0, allAlive = true;
+  for (let r = r1; r <= r2; r++)
+    for (let c = c1; c <= c2; c++) {
+      if (removed[r][c]) { allAlive = false; }
+      else s += board[r][c];
+    }
+  const ok = allAlive && s === TARGET;
+  for (const cell of grid.children) cell.classList.remove('preview');
+  const { x, y, w, h } = rectPx({ r1, c1, r2, c2 });
+  selBox.style.display = 'block';
+  selBox.style.left = x + 'px'; selBox.style.top = y + 'px';
+  selBox.style.width = w + 'px'; selBox.style.height = h + 'px';
+  selBox.style.borderColor = ok ? '#55efc4' : '#f9ca24';
+  selBox.style.background = ok ? 'rgba(85,239,196,.15)' : 'rgba(249,202,36,.12)';
+  if (ok)
+    for (let r = r1; r <= r2; r++)
+      for (let c = c1; c <= c2; c++)
+        grid.children[r * COLS + c].classList.add('preview');
+  return { r1, c1, r2, c2, ok };
+}
+
+function pointerDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const cell = cellFromPoint(e.clientX, e.clientY);
+  if (!cell) return;
+  clearHint(); // 드래그 시작 시 힌트 표시 해제
+  dragging = true;
+  startCell = cell;
+  previewRect(startCell, cell);
+  e.preventDefault();
+}
+
+function pointerMove(e) {
+  if (!dragging) return;
+  const cell = cellFromPoint(e.clientX, e.clientY);
+  if (cell) previewRect(startCell, cell);
+  e.preventDefault();
+}
+
+function pointerUp(e) {
+  if (!dragging) return;
+  dragging = false;
+  const cell = cellFromPoint(e.clientX, e.clientY) ?? startCell;
+  const sel = previewRect(startCell, cell);
+  selBox.style.display = 'none';
+  for (const cellEl of grid.children) cellEl.classList.remove('preview');
+  if (sel.ok) {
+    let count = 0;
+    for (let r = sel.r1; r <= sel.r2; r++)
+      for (let c = sel.c1; c <= sel.c2; c++) {
+        removed[r][c] = true;
+        count++;
+      }
+    score += count;
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      localStorage.setItem(BEST_KEY, String(best));
+      bestEl.textContent = best;
+    }
+    showToast(`🍎 ${count}개 제거! +${count}점`);
+    // 제거로 인해 남은 사과가 10 미만이면 조합 불가능 → 새 보드 제안은 하지 않음 (MVP 규칙)
+  }
+  e.preventDefault();
+}
+
+/* ---------- 토스트 ---------- */
+let toastTimer = null;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+
+/* ---------- 다시 시작 ---------- */
+function newBoard() {
+  board = [];
+  removed = [];
+  for (let r = 0; r < ROWS; r++) {
+    board.push(Array.from({ length: COLS }, () => 1 + Math.floor(Math.random() * 9)));
+    removed.push(new Array(COLS).fill(false));
+  }
+  score = 0;
+  scoreEl.textContent = '0';
+  clearHint();
+  selBox.style.display = 'none';
+  render();
+}
+
+/* ---------- 이벤트 바인딩 ---------- */
+boardEl.addEventListener('pointerdown', pointerDown);
+window.addEventListener('pointermove', pointerMove);
+window.addEventListener('pointerup', pointerUp);
+document.getElementById('btnHint').addEventListener('click', showHint);
+document.getElementById('btnRestart').addEventListener('click', () => {
+  newBoard();
+  showToast('새 보드로 다시 시작! 점수 0');
+});
+
+buildGrid();
+newBoard();
+</script>
+</body>
+</html>
